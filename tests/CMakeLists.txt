@@ -2,11 +2,15 @@ cmake_minimum_required(VERSION 3.0.0)
 
 set(This BigIntTests)
 
+set(HEADERS 
+    BigIntTests.hpp
+)
+
 set(SOURCES 
     BigIntTests.cpp
 )
 
-add_executable(${This} ${SOURCES})
+add_executable(${This} ${SOURCES} ${HEADERS})
 
 target_compile_options(${This} PRIVATE 
     "-Wall"

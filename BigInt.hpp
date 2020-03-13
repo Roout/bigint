@@ -4,6 +4,11 @@
 #include <vector>
 #include <sstream>
 #include <string>
+#include <cassert>
+
+namespace helper {
+    class Tests;
+}
 
 class BigInt final {
 public:
@@ -22,70 +27,106 @@ public:
         }
     }
 
-    /// Big integer as one operand
-    BigInt& operator + (const BigInt& rhs) {
-
+    // inverse the sign: + to -, - to +;
+    // i.e., same as multiply it by -1.
+    const BigInt& Negate() {
+        m_isPositive = static_cast<int>(m_isPositive) ^ 1;
         return *this;
     }
 
-    BigInt& operator - (const BigInt& rhs) {
+    bool IsPositive() const {
+        return m_isPositive;
+    }
 
+    const BigInt& operator + (const BigInt& rhs) {
+        if( m_isPositive == rhs.m_isPositive) {
+            // sum up and don't change the sign
+        }   
+        else if ( !m_isPositive ) {
+            
+        } 
+        else { // rhs.m_isPositive
+            
+        }   
         return *this;
     }
 
-    BigInt& operator * (const BigInt& rhs) {
-
-        return *this;
+    const BigInt& operator - (const BigInt& rhs) {
+        return rhs;
     }
 
-    BigInt& operator / (const BigInt& rhs) {
+    const BigInt& operator * (const BigInt& rhs) {
+        BigInt result = rhs;
 
-        return *this;
+        return result;
+    }
+
+    const BigInt& operator / (const BigInt& rhs) {
+        BigInt result = rhs;
+
+        return result;
     }
 
     // Reminder, NOT modulo! Answer can be negative.
-    BigInt& operator % (const BigInt& rhs) {
+    const BigInt& operator % (const BigInt& rhs) {
+        BigInt result = rhs;
 
-        return *this;
+        return result;
     }
     
     // Modulo, NOT reminder! Answer >= 0;
-    BigInt& Mod (const BigInt& rhs) {
+    const BigInt& Mod (const BigInt& rhs) {
+
+        return rhs;
+    }
+
+    friend BigInt operator+ (const BigInt& lhs, const BigInt& rhs);
+    friend BigInt operator- (const BigInt& lhs, const BigInt& rhs);
+    friend BigInt operator* (const BigInt& lhs, const BigInt& rhs);
+    friend BigInt operator/ (const BigInt& lhs, const BigInt& rhs);
+    friend BigInt operator% (const BigInt& lhs, const BigInt& rhs);
+
+    friend bool operator<   (const BigInt& lhs, const BigInt& rhs);
+    friend bool operator>   (const BigInt& lhs, const BigInt& rhs);
+    friend bool operator!=  (const BigInt& lhs, const BigInt& rhs);
+    friend bool operator==  (const BigInt& lhs, const BigInt& rhs);
+
+    /// simple pod type as one operand
+
+    friend std::ostream& operator<<(std::ostream& os, const BigInt& x);
+
+private:
+
+    friend class helper::Tests;
+
+    const BigInt& AddPositiveInteger(
+        const BigInt& rhs
+    ) {
+        assert(m_isPositive && rhs.m_isPositive);
+        
+        const auto size = std::max(m_digits.size(), rhs.m_digits.size());
+
+        auto carry { 0 };
+        for(size_t i = 0; i < size || carry; i++) {
+            if ( i == m_digits.size() ) { 
+                m_digits.push_back( 0 );
+            }
+            m_digits[i] += carry + (i < rhs.m_digits.size()? rhs.m_digits[i] : 0);
+            carry = m_digits[i] >= RADIX;
+            m_digits[i] %= RADIX;
+        }
 
         return *this;
     }
 
-    friend BigInt operator + (const BigInt& lhs, const BigInt& rhs) {
-        return BigInt{lhs} + rhs;
+    const BigInt& SubstructPositiveInteger(
+        const BigInt& rhs
+    ) {
+        assert(m_isPositive && rhs.m_isPositive);
+        
+        return *this;
     }
 
-    friend BigInt operator - (const BigInt& lhs, const BigInt& rhs) {
-        return BigInt{lhs} - rhs;
-    }
-
-    friend BigInt operator * (const BigInt& lhs, const BigInt& rhs) {
-        return BigInt{lhs} * rhs;
-    }
-
-    friend BigInt operator / (const BigInt& lhs, const BigInt& rhs) {
-        return BigInt{lhs} / rhs;
-    }
-
-    friend BigInt operator % (const BigInt& lhs, const BigInt& rhs) {
-        return BigInt{lhs} % rhs;
-    }
-    /// simple pod type as one operand
-    
-    /// output
-    friend std::ostream& operator<<(std::ostream& os, const BigInt& x) {
-        x.Print(os);
-        return os;
-    }
-
-private:
-
-    // -1'234567890'654323453'346786543'005675432_
-    // 1'234567890'654323453'346786543'005675432
     void ParseNonEmptyString(const std::string& number) {
         // TODO: 
         // - add exceptons for parsing, e.g. if first char is letter etc.
@@ -132,3 +173,95 @@ private:
     std::vector<int> m_digits;
     bool m_isPositive;
 };
+
+
+BigInt operator+ (const BigInt& lhs, const BigInt& rhs) {
+    auto x { lhs };
+    return x + rhs;
+}
+
+BigInt operator- (const BigInt& lhs, const BigInt& rhs) {
+    auto x { lhs };
+    return x - rhs;
+}
+
+BigInt operator* (const BigInt& lhs, const BigInt& rhs) {
+    auto x { lhs };
+    return x * rhs;
+}
+
+BigInt operator/ (const BigInt& lhs, const BigInt& rhs) {
+    auto x { lhs };
+    return x / rhs;
+}
+
+BigInt operator% (const BigInt& lhs, const BigInt& rhs) {
+    auto x { lhs };
+    return x % rhs;
+}
+
+bool operator< (const BigInt& lhs, const BigInt& rhs) {
+    bool isLesser { true };
+    // positive always greater negative
+    if ( lhs.m_isPositive && !rhs.m_isPositive ) {
+        isLesser = false;
+    }
+
+    const auto lSize { static_cast<int>(lhs.m_digits.size()) };
+    const auto rSize { static_cast<int>(rhs.m_digits.size()) };
+    // number with higher number of digits is greater
+    if ( lSize > rSize ) {
+        isLesser = false;
+    }
+    else if ( lSize == rSize ) { 
+        // make sure numbers aren't equel
+        bool isEquel = true;
+        // Go from the highest digit number to lowest: 
+        for(int i = lSize - 1; i >= 0 && isLesser; i-- ) {
+            if( isEquel && lhs.m_digits[i] != rhs.m_digits[i] ) {
+                isEquel = false;
+            }
+            if( lhs.m_digits[i] > rhs.m_digits[i] ) {
+                isLesser = false;
+            }
+        }
+        if( isEquel ) {
+            isLesser = false;
+        }
+    }
+    return isLesser;
+}
+
+bool operator> (const BigInt& lhs, const BigInt& rhs) {
+    return !(lhs < rhs) && lhs != rhs;
+}
+
+bool operator!= (const BigInt& lhs, const BigInt& rhs) {
+    return !(lhs == rhs);
+}
+
+bool operator== (const BigInt& lhs, const BigInt& rhs) {
+    bool isEquel { true };
+
+    const auto lSize { lhs.m_digits.size() };
+    const auto rSize { rhs.m_digits.size() };
+    
+    if( lhs.m_isPositive != rhs.m_isPositive ||
+        lSize != rSize 
+    ) {
+        isEquel = false;
+    }
+
+    for(size_t i = 0; i < lSize && isEquel; i++) {
+        if( lhs.m_digits[i] != rhs.m_digits[i] ) {
+            isEquel = false;
+        }
+    }
+
+    return isEquel;
+}
+
+std::ostream& operator<<(std::ostream& os, const BigInt& x) {
+    x.Print(os);
+    return os;
+}
