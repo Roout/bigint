@@ -99,6 +99,7 @@ private:
 
     friend class helper::Tests;
 
+    // RESTRICTION
     const BigInt& AddPositiveInteger(
         const BigInt& rhs
     ) {
@@ -119,11 +120,29 @@ private:
         return *this;
     }
 
-    const BigInt& SubstructPositiveInteger(
+
+    // TODO: change isPositive to isNegative: 
+    //       zero isn't positive but I use it!
+    // RESTRICTION: 
+    // - rhs must be smaller or equel *this big integer;
+    // - *this >= 0
+    // - ths >= 0 
+    const BigInt& SubstructSmallerPositiveInteger(
         const BigInt& rhs
     ) {
-        assert(m_isPositive && rhs.m_isPositive);
+        assert(m_isPositive && rhs.m_isPositive && !(*this < rhs));
         
+        // m_digits.size() > rhs.m_digits.size() due to restrictions
+        for(size_t i = 0; i < m_digits.size(); i++) {
+            if( i < rhs.m_digits.size() ) {
+                m_digits[i] -= rhs.m_digits[i];
+            }
+            if ( m_digits[i] < 0) {
+                m_digits[i] += RADIX;
+                m_digits[i + 1]--;
+            }
+        }
+
         return *this;
     }
 
@@ -201,32 +220,38 @@ BigInt operator% (const BigInt& lhs, const BigInt& rhs) {
 }
 
 bool operator< (const BigInt& lhs, const BigInt& rhs) {
-    bool isLesser { true };
+    bool isLesser { false };
     // positive always greater negative
     if ( lhs.m_isPositive && !rhs.m_isPositive ) {
-        isLesser = false;
+        return false;
+    }
+    else if ( !lhs.m_isPositive && rhs.m_isPositive ) {
+        return true;
     }
 
+    // reacheable for only positive or negative integers
     const auto lSize { static_cast<int>(lhs.m_digits.size()) };
     const auto rSize { static_cast<int>(rhs.m_digits.size()) };
+    
     // number with higher number of digits is greater
     if ( lSize > rSize ) {
-        isLesser = false;
+        isLesser = (lhs.m_isPositive && rhs.m_isPositive)? false: true;
+    }
+    else if(lSize < rSize) {
+        isLesser = (lhs.m_isPositive && rhs.m_isPositive)? true: false;
     }
     else if ( lSize == rSize ) { 
-        // make sure numbers aren't equel
-        bool isEquel = true;
+        isLesser = false; // assume that integers are equel by default
         // Go from the highest digit number to lowest: 
-        for(int i = lSize - 1; i >= 0 && isLesser; i-- ) {
-            if( isEquel && lhs.m_digits[i] != rhs.m_digits[i] ) {
-                isEquel = false;
-            }
+        for(int i = lSize - 1; i >= 0; i-- ) {
             if( lhs.m_digits[i] > rhs.m_digits[i] ) {
-                isLesser = false;
+                isLesser = (lhs.m_isPositive && rhs.m_isPositive)? false: true;
+                break;
+            } 
+            else if( lhs.m_digits[i] < rhs.m_digits[i] ) {
+                isLesser = (lhs.m_isPositive && rhs.m_isPositive)? true: false;
+                break;
             }
-        }
-        if( isEquel ) {
-            isLesser = false;
         }
     }
     return isLesser;

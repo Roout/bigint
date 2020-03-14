@@ -23,8 +23,8 @@ namespace helper {
             return m_bigInt->AddPositiveInteger(rhs);
         }
 
-        const BigInt& SubstructPositiveInteger(const BigInt& rhs) {
-            return m_bigInt->SubstructPositiveInteger(rhs);
+        const BigInt& SubstructSmallerPositiveInteger(const BigInt& rhs) {
+            return m_bigInt->SubstructSmallerPositiveInteger(rhs);
         }
         
     private:

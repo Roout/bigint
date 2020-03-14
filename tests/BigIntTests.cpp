@@ -45,7 +45,51 @@ TEST_F(BigIntTest, AddPositiveIntegers)
     }
 }
 
-TEST_F(BigIntTest, SubstructPositiveIntegers) 
+TEST_F(BigIntTest, IsLesserComparable)
+{
+    // data preparation:
+    constexpr size_t size = 6; 
+    std::array<std::string, size> viewLeft = {
+        "0",
+        "1809274982374918237627129802120320130210301240100000",
+        "1809274982374918237627129802120320130210301240100000",
+        "-8901001001",
+        "18092749823890100100174918890100100123762712980212089010089010010011089000000000000001001001018901001001320130210301240100000",
+        "-718437942374632742384324234213412342432432432"
+    }, viewRight = {
+        "0",
+        "1809274982374918237627129802120320130210301240100000",
+        "-1809274982374918237627129802120320130210301240100000",
+        "-234324328901001001",
+        "18292749823890100109994918890100100123762712980212089010089010010011089000000000000001001001018901001001320130210301240100000",
+        "7832894234717826381254635412784623746329872395462352347234932423743294324"
+    };
+
+    std::array<BigInt, size> lhs, rhs;
+    for(size_t i = 0; i < size; i++) {
+        lhs[i] = BigInt{ viewLeft[i] };
+        rhs[i] = BigInt{ viewRight[i] };
+    }
+
+    std::array<bool, size> comparisonResult {
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+    };
+
+    // tests
+    for(size_t i = 0; i < size; i++) {
+        EXPECT_EQ(lhs[i] < rhs[i], comparisonResult[i])
+            <<  lhs[i] << " < " << rhs[i] << " :=> i = " << i;
+    }
+} 
+
+// TDOO: add other comparison operator tests!
+
+TEST_F(BigIntTest, SubstructSmallerPositiveInteger) 
 {
     // data preparation:
     std::array<BigInt, SIZE> lhs, rhs;
@@ -55,9 +99,9 @@ TEST_F(BigIntTest, SubstructPositiveIntegers)
     }
     // tests
     for(size_t i = 0; i < SIZE; i++) {
-        if( lhs[i].IsPositive() && rhs[i].IsPositive() ) {
+        if( lhs[i].IsPositive() && rhs[i].IsPositive() && rhs[i] < lhs[i] ) {
             std::stringstream ss;
-            ss << helper::Tests(&lhs[i]).SubstructPositiveInteger(rhs[i]);
+            ss << helper::Tests(&lhs[i]).SubstructSmallerPositiveInteger(rhs[i]);
             EXPECT_EQ(ss.str(), m_resultView[Operators::MINUS][i]) << "i = " << i;
         }
     }
