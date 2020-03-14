@@ -39,39 +39,81 @@ public:
     }
 
     const BigInt& operator + (const BigInt& rhs) {
-        if( m_isPositive == rhs.m_isPositive) {
-            // sum up and don't change the sign
-        }   
-        else if ( !m_isPositive ) {
-            
-        } 
-        else { // rhs.m_isPositive
-            
-        }   
-        return *this;
+        if( m_isPositive && rhs.m_isPositive) {
+            this->AddPositiveInteger(rhs);
+            return *this;
+        }
+        else if( !m_isPositive && !rhs.m_isPositive) {
+            auto right { rhs };
+            this->Negate(), right.Negate();
+            this->AddPositiveInteger(right);
+            this->Negate();
+            return *this;
+        }
+        else if(m_isPositive) { // rhs is negative
+            // (a + b), where a >= 0, b < 0 =>  
+            // a + (-b) = a - b, where a >= 0, b > 0 
+            auto right { rhs };
+            right.Negate();
+            this->SubstractPositiveInteger(right);
+            return *this;
+        }
+        else { // lhs < 0, rhs >= 0
+            // (a + b), a < 0, b >= 0 => 
+            // (-a + b) = b - a, where a > 0, b >= 0 
+            auto right { rhs };
+            this->Negate();
+            right.SubstractPositiveInteger(*this);
+            *this = std::move(right);
+            return *this;
+        }
     }
 
     const BigInt& operator - (const BigInt& rhs) {
-        return rhs;
+        if( m_isPositive && rhs.m_isPositive ) {
+            this->SubstractPositiveInteger(rhs);
+            return *this;
+        }
+        else if( !m_isPositive && !rhs.m_isPositive ) {
+             // (a - b), a < 0, b < 0 => (-a - (-b)) => (-a + b) => b - a
+            auto right { rhs };
+            this->Negate(), right.Negate();
+            right.SubstractPositiveInteger(*this);
+            *this = std::move(right);
+            return *this;
+        }
+        else if(m_isPositive) { // rhs is negative
+            // (a - b), a >= 0, b < 0 =>  a - (-b) = a + b, where a >= 0, b > 0 
+            auto right { rhs };
+            right.Negate();
+            this->AddPositiveInteger(right);
+            return *this;
+        }
+        else { // lhs < 0, rhs >= 0
+            // (a - b), a < 0, b >= 0 => 
+            // (-a - b) = -(a + b), where a > 0, b >= 0 
+            auto right { rhs };
+            this->Negate();
+            this->AddPositiveInteger(right);
+            this->Negate();
+            return *this;
+        }
     }
 
     const BigInt& operator * (const BigInt& rhs) {
-        BigInt result = rhs;
 
-        return result;
+        return rhs;
     }
 
     const BigInt& operator / (const BigInt& rhs) {
-        BigInt result = rhs;
 
-        return result;
+        return rhs;
     }
 
     // Reminder, NOT modulo! Answer can be negative.
     const BigInt& operator % (const BigInt& rhs) {
-        BigInt result = rhs;
 
-        return result;
+        return rhs;
     }
     
     // Modulo, NOT reminder! Answer >= 0;
@@ -99,8 +141,13 @@ private:
 
     friend class helper::Tests;
 
-    // RESTRICTION
-    const BigInt& AddPositiveInteger(
+     /** @brief
+     * Expect only positive integers as passed parametr. 
+     * Caller object must be also positive.
+     * @note 
+     * It will modify caller object  
+     */
+    void AddPositiveInteger(
         const BigInt& rhs
     ) {
         assert(m_isPositive && rhs.m_isPositive);
@@ -116,8 +163,6 @@ private:
             carry = m_digits[i] >= RADIX;
             m_digits[i] %= RADIX;
         }
-
-        return *this;
     }
 
 
@@ -127,12 +172,12 @@ private:
     // - rhs must be smaller or equel *this big integer;
     // - *this >= 0
     // - ths >= 0 
-    const BigInt& SubstructSmallerPositiveInteger(
+    void SubstractSmallerPositiveInteger(
         const BigInt& rhs
     ) {
         assert(m_isPositive && rhs.m_isPositive && !(*this < rhs));
         
-        // m_digits.size() > rhs.m_digits.size() due to restrictions
+        // m_digits.size() >= rhs.m_digits.size() due to restrictions
         for(size_t i = 0; i < m_digits.size(); i++) {
             if( i < rhs.m_digits.size() ) {
                 m_digits[i] -= rhs.m_digits[i];
@@ -142,8 +187,22 @@ private:
                 m_digits[i + 1]--;
             }
         }
+    }
 
-        return *this;
+    void SubstractPositiveInteger(
+        const BigInt& rhs
+    ) {
+        assert(m_isPositive && rhs.m_isPositive);
+        
+        if (!(*this < rhs)) {
+            this->SubstractSmallerPositiveInteger(rhs);
+        }
+        else {
+            auto copy { rhs };
+            copy.SubstractSmallerPositiveInteger(*this);
+            copy.Negate();
+            std::swap(copy, *this);
+        }
     }
 
     void ParseNonEmptyString(const std::string& number) {
