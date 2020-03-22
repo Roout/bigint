@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 #include <cassert>
+#include <string_view>
 
 namespace helper {
     class Tests;
@@ -12,116 +13,107 @@ namespace helper {
 
 class BigInt final {
 public:
-    BigInt():
-        m_digits {0},
-        m_isPositive{ true } 
-    { // def ctor
-    }
 
-    BigInt(const std::string& number) {
+    BigInt(const std::string& number = "") {
         if( number.empty() ) {
             m_digits.push_back(0);
+            m_isPositive = true;
         }
         else {
             this->ParseNonEmptyString(number);
         }
     }
 
-    // inverse the sign: + to -, - to +;
-    // i.e., same as multiply it by -1.
-    const BigInt& Negate() {
+    void operator-() noexcept {
         m_isPositive = static_cast<int>(m_isPositive) ^ 1;
-        return *this;
     }
 
-    bool IsPositive() const {
+    bool IsPositive() const noexcept {
         return m_isPositive;
     }
 
-    const BigInt& operator + (const BigInt& rhs) {
+    void operator += (const BigInt& rhs) {
         if( m_isPositive && rhs.m_isPositive) {
             this->AddPositiveInteger(rhs);
-            return *this;
         }
         else if( !m_isPositive && !rhs.m_isPositive) {
             auto right { rhs };
-            this->Negate(), right.Negate();
+            -*this, -right;
             this->AddPositiveInteger(right);
-            this->Negate();
-            return *this;
+            -*this;
         }
         else if(m_isPositive) { // rhs is negative
             // (a + b), where a >= 0, b < 0 =>  
             // a + (-b) = a - b, where a >= 0, b > 0 
             auto right { rhs };
-            right.Negate();
+            -right;
             this->SubstractPositiveInteger(right);
-            return *this;
         }
         else { // lhs < 0, rhs >= 0
             // (a + b), a < 0, b >= 0 => 
             // (-a + b) = b - a, where a > 0, b >= 0 
             auto right { rhs };
-            this->Negate();
+            -*this;
             right.SubstractPositiveInteger(*this);
             *this = std::move(right);
-            return *this;
         }
     }
 
-    const BigInt& operator - (const BigInt& rhs) {
+    void operator -= (const BigInt& rhs) {
         if( m_isPositive && rhs.m_isPositive ) {
             this->SubstractPositiveInteger(rhs);
-            return *this;
         }
         else if( !m_isPositive && !rhs.m_isPositive ) {
              // (a - b), a < 0, b < 0 => (-a - (-b)) => (-a + b) => b - a
             auto right { rhs };
-            this->Negate(), right.Negate();
+            -*this, -right;
             right.SubstractPositiveInteger(*this);
             *this = std::move(right);
-            return *this;
         }
         else if(m_isPositive) { // rhs is negative
             // (a - b), a >= 0, b < 0 =>  a - (-b) = a + b, where a >= 0, b > 0 
             auto right { rhs };
-            right.Negate();
+            -right;
             this->AddPositiveInteger(right);
-            return *this;
         }
         else { // lhs < 0, rhs >= 0
             // (a - b), a < 0, b >= 0 => 
             // (-a - b) = -(a + b), where a > 0, b >= 0 
             auto right { rhs };
-            this->Negate();
+            -*this;
             this->AddPositiveInteger(right);
-            this->Negate();
-            return *this;
+            -*this;
         }
     }
 
-    const BigInt& operator * (const BigInt& rhs) {
-
-        return rhs;
+    // Time compexity: O(n*n)
+    void operator *= (const BigInt& rhs) {
+        std::vector<int> res (rhs.m_digits.size() + m_digits.size() + 1, 0U);
+        for(size_t i = 0; i < rhs.m_digits.size(); i++) {
+            for(size_t j = 0, carry = 0; j < m_digits.size() || carry; j++) {
+                const auto cur { 1ULL * rhs.m_digits[i] * (j < m_digits.size()? m_digits[j]: 0LL ) + carry + res[i + j] };
+                res[i + j] = cur % RADIX;
+                carry = cur / RADIX;
+            }
+        }
+        // remove leading zeroes
+        while(res.size() > 1 && !res.back()) {
+            res.pop_back();
+        }
+        // set up sign
+        m_isPositive = !static_cast<bool>(m_isPositive ^ rhs.m_isPositive);
+        m_digits = std::move(res);
     }
 
-    const BigInt& operator / (const BigInt& rhs) {
-
-        return rhs;
+    void operator /= (const BigInt& rhs) {
+        *this = this->DivMod(rhs).first;
     }
 
     // Reminder, NOT modulo! Answer can be negative.
-    const BigInt& operator % (const BigInt& rhs) {
-
-        return rhs;
+    void operator %= (const BigInt& rhs) {
+        *this = this->DivMod(rhs).second;
     }
     
-    // Modulo, NOT reminder! Answer >= 0;
-    const BigInt& Mod (const BigInt& rhs) {
-
-        return rhs;
-    }
-
     friend BigInt operator+ (const BigInt& lhs, const BigInt& rhs);
     friend BigInt operator- (const BigInt& lhs, const BigInt& rhs);
     friend BigInt operator* (const BigInt& lhs, const BigInt& rhs);
@@ -161,17 +153,20 @@ private:
             }
             m_digits[i] += carry + (i < rhs.m_digits.size()? rhs.m_digits[i] : 0);
             carry = m_digits[i] >= RADIX;
-            m_digits[i] %= RADIX;
+            if( carry ) m_digits[i] -= RADIX;
         }
     }
 
-
-    // TODO: change isPositive to isNegative: 
-    //       zero isn't positive but I use it!
-    // RESTRICTION: 
-    // - rhs must be smaller or equel *this big integer;
-    // - *this >= 0
-    // - ths >= 0 
+    /** @brief
+     * Expect only positive integers as passed parametr. 
+     * Caller object must be also positive.
+     * @note 
+     * It will modify caller object.
+     * Restrictions:
+     * - rhs must be smaller or equel *this big integer;
+     * - *this >= 0
+     * - ths >= 0 
+     */
     void SubstractSmallerPositiveInteger(
         const BigInt& rhs
     ) {
@@ -189,6 +184,12 @@ private:
         }
     }
 
+    /** @brief
+     * Expect only positive integers as passed parametr. 
+     * Caller object must be also positive.
+     * @note 
+     * It will modify caller object  
+     */
     void SubstractPositiveInteger(
         const BigInt& rhs
     ) {
@@ -200,29 +201,39 @@ private:
         else {
             auto copy { rhs };
             copy.SubstractSmallerPositiveInteger(*this);
-            copy.Negate();
-            std::swap(copy, *this);
+            -copy;
+            *this = std::move(copy);
         }
+    }
+
+    std::pair<BigInt, BigInt> DivMod(const BigInt& rhs) const {
+        BigInt div, mod;
+        
+        return {div, mod};
     }
 
     void ParseNonEmptyString(const std::string& number) {
         // TODO: 
         // - add exceptons for parsing, e.g. if first char is letter etc.
-
-        // ignore sign if exist
-        const int lastLeftDigit = isdigit(number.front()) ? 0 : 1;
+        std::string_view sv { number };
         // set up number sign
         m_isPositive = number.front() == '-'? false : true;
 
-        const auto size = static_cast<int>(number.length());
+        // remove leading and ending non-number characters such as: \t\n etc
+        sv.remove_prefix(sv.find_first_of("0123456789"));
+        sv.remove_suffix(sv.size() - sv.find_last_of("0123456789") - 1);
+
+        const auto size = static_cast<int>(sv.size());
         // allocate contiguous memory at once 
         m_digits.reserve(size / BASE + 1);
-        for (int i = size; i > lastLeftDigit; i -= BASE) {
+        for (int i = size; i > 0; i -= BASE) {
             if (i <= BASE) {
-                m_digits.emplace_back(stoi(number.substr(lastLeftDigit, i - lastLeftDigit)));
+                const std::string sub(sv.begin(), sv.begin() + i);
+                m_digits.emplace_back(std::stoi(sub));
             }
             else {
-                m_digits.emplace_back(stoi(number.substr(i - BASE, BASE)));
+                const std::string sub(sv.begin() + i - BASE, sv.begin() + i);
+                m_digits.emplace_back(std::stoi(sub));
             }
         }
     }
@@ -255,27 +266,32 @@ private:
 
 BigInt operator+ (const BigInt& lhs, const BigInt& rhs) {
     auto x { lhs };
-    return x + rhs;
+    x += rhs;
+    return x;
 }
 
 BigInt operator- (const BigInt& lhs, const BigInt& rhs) {
     auto x { lhs };
-    return x - rhs;
+    x -= rhs;
+    return x;
 }
 
 BigInt operator* (const BigInt& lhs, const BigInt& rhs) {
     auto x { lhs };
-    return x * rhs;
+    x *= rhs;
+    return x;
 }
 
 BigInt operator/ (const BigInt& lhs, const BigInt& rhs) {
     auto x { lhs };
-    return x / rhs;
+    x /= rhs;
+    return  x;
 }
 
 BigInt operator% (const BigInt& lhs, const BigInt& rhs) {
     auto x { lhs };
-    return x % rhs;
+    x %= rhs;
+    return x;
 }
 
 bool operator< (const BigInt& lhs, const BigInt& rhs) {

@@ -126,7 +126,7 @@ TEST_F(BigIntTest, SubstractPositiveInteger)
     }
 }
 
-TEST_F(BigIntTest, SubtractWithBigIntOperand)
+TEST_F(BigIntTest, SubstractWithBigIntOperand)
 {
     // data preparation:
     std::array<BigInt, SIZE> lhs, rhs;
@@ -160,6 +160,40 @@ TEST_F(BigIntTest, AddWithBigIntOperand)
     }
 }
 
+TEST(SimpleMultiplicationTest, CustomMadeTestsPass)
+{
+    constexpr auto size = 9U;
+    std::array<BigInt, size> args = {
+        BigInt{"0"},
+        BigInt{"-1"},
+        BigInt{"1"},
+        BigInt{"1000000000000"},
+        BigInt{"101010101010"},
+        BigInt{"100000000"},
+        BigInt{"1000000000"},
+        BigInt{"9999"},
+        BigInt{"99999"}
+    };
+    std::array<BigInt, size> res = {
+        BigInt{"0"},
+        BigInt{"1"},
+        BigInt{"1"},
+        BigInt{"1000000000000000000000000"},
+        BigInt{"10203040506050403020100‬"},
+        BigInt{"10000000000000000"},
+        BigInt{"1000000000000000000"},
+        BigInt{"99980001‬"},
+        BigInt{"9999800001"}
+    };
+    for(size_t i = 0; i < size; i++) {
+        EXPECT_EQ(args[i] * args[i], res[i] ) 
+            << "\n\t:=> i = " << i;
+    }
+
+    EXPECT_EQ(BigInt{"10000"} * BigInt{"100001"}, BigInt{"1000010000"} )
+        << " fail multiplication of 100001 * 10000";; 
+}
+
 TEST_F(BigIntTest, MultiplyWithBigIntOperand)
 {
     // data preparation:
@@ -173,7 +207,7 @@ TEST_F(BigIntTest, MultiplyWithBigIntOperand)
         std::stringstream ss;
         ss << lhs[i] * rhs[i];
 
-        //EXPECT_EQ(ss.str(), m_resultView[Operators::MULT][i]) << "i = " << i;
+        EXPECT_EQ(ss.str(), m_resultView[Operators::MULT][i]) << "i = " << i;
     }
 }
 
