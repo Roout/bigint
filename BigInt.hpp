@@ -6,6 +6,7 @@
 #include <string>
 #include <cassert>
 #include <string_view>
+#include <algorithm>
 
 namespace helper {
     class Tests;
@@ -16,7 +17,7 @@ public:
 
     BigInt(const std::string& number = "") {
         if( number.empty() ) {
-            m_digits.push_back(0);
+            m_coefficients.push_back(0);
             m_isPositive = true;
         }
         else {
@@ -57,6 +58,9 @@ public:
             right.SubstractPositiveInteger(*this);
             *this = std::move(right);
         }
+        while(!m_coefficients.empty() && !m_coefficients.back()) {
+            m_coefficients.pop_back();
+        }
     }
 
     void operator -= (const BigInt& rhs) {
@@ -84,14 +88,17 @@ public:
             this->AddPositiveInteger(right);
             -*this;
         }
+        while(!m_coefficients.empty() && !m_coefficients.back()) {
+            m_coefficients.pop_back();
+        }
     }
 
     // Time compexity: O(n*n)
     void operator *= (const BigInt& rhs) {
-        std::vector<int> res (rhs.m_digits.size() + m_digits.size() + 1, 0U);
-        for(size_t i = 0; i < rhs.m_digits.size(); i++) {
-            for(size_t j = 0, carry = 0; j < m_digits.size() || carry; j++) {
-                const auto cur { 1ULL * rhs.m_digits[i] * (j < m_digits.size()? m_digits[j]: 0LL ) + carry + res[i + j] };
+        std::vector<int> res (rhs.m_coefficients.size() + m_coefficients.size() + 1, 0U);
+        for(size_t i = 0; i < rhs.m_coefficients.size(); i++) {
+            for(size_t j = 0, carry = 0; j < m_coefficients.size() || carry; j++) {
+                const auto cur { 1ULL * rhs.m_coefficients[i] * (j < m_coefficients.size()? m_coefficients[j]: 0LL ) + carry + res[i + j] };
                 res[i + j] = cur % RADIX;
                 carry = cur / RADIX;
             }
@@ -102,7 +109,41 @@ public:
         }
         // set up sign
         m_isPositive = !static_cast<bool>(m_isPositive ^ rhs.m_isPositive);
-        m_digits = std::move(res);
+        m_coefficients = std::move(res);
+    }
+
+    // Time complexity: O(n^(1.585))
+    friend BigInt KaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs) {
+        /**
+         * Algorithm is fairy simple:
+         * A = ax + b
+         * B = cx + d
+         * A * B = (ax + b)(cx + d) = acxx + x(ad + cb) + bd 
+         * AND
+         * (ad + cb) = (a + b)(c + d) - ac - bd
+         * SO
+         * A * B = ac * xx + x * ((a + b)(c + d) - ac - bd) + bd
+        */
+        auto degree = std::max(lhs.m_coefficients.size(), rhs.m_coefficients.size());
+        if(degree == 1) return lhs * rhs;
+
+        degree = (degree&1u) + (degree >> 1u);
+        // Split lhs and rhs into 2 equal parts:
+
+        // works like binary shift operator >> (pop_front coefficient)
+        auto a = lhs.ShiftRight(degree);
+        // cut off rank from right to left (from highest to lowest) (pop_back coefficients)
+        auto b = lhs.CutOffRank(std::min(lhs.m_coefficients.size(), lhs.m_coefficients.size() - degree)); 
+        // works like binary shift operator >>
+        auto c = rhs.ShiftRight(degree); 
+        // cut off rank from right to left (from highest to lowest)
+        auto d = rhs.CutOffRank(std::min(rhs.m_coefficients.size(), rhs.m_coefficients.size() - degree)); 
+
+        // Compute the subproblems:
+        auto ac = KaratsubaMultiplication(a, c);
+        auto bd = KaratsubaMultiplication(b, d);
+        auto abcd = KaratsubaMultiplication(a + b, c + d);
+        return (abcd - ac - bd).ShiftLeft(degree) + ac.ShiftLeft(degree << 1u) + bd; 
     }
 
     void operator /= (const BigInt& rhs) {
@@ -133,6 +174,52 @@ private:
 
     friend class helper::Tests;
 
+    /**
+     * Works like binary >> (just pop_front coefficient) 
+     */
+    BigInt ShiftRight(size_t rank) const {
+        BigInt copy {};
+        copy.m_isPositive = this->m_isPositive;
+        auto currentRank { m_coefficients.size() };
+        if (currentRank > rank) {
+            copy.m_coefficients.resize(currentRank - rank);
+            std::copy(m_coefficients.cbegin() + rank, m_coefficients.cend(), copy.m_coefficients.begin());
+        }
+        return copy;
+    }
+
+    /**
+     * Works like binary << (just push_front zero coefficients) 
+     */
+    BigInt ShiftLeft(size_t rank) const {
+        BigInt copy {};
+        copy.m_isPositive = this->m_isPositive;
+        if(!m_coefficients.empty()) {
+            copy.m_coefficients.resize(m_coefficients.size() + rank);
+            std::copy(m_coefficients.cbegin(), m_coefficients.cend(), copy.m_coefficients.begin() + rank);
+        }
+        return copy;       
+    }
+
+    /**
+     * Just pop_back coefficients 
+     * (these are highest rank one so the calue will become smaller)
+     */
+    BigInt CutOffRank(size_t rank) const {
+        BigInt copy {};
+        copy.m_isPositive = this->m_isPositive;
+        auto currentRank { m_coefficients.size() };
+        if (currentRank > rank) {
+            copy.m_coefficients.resize(currentRank - rank);
+            std::copy(m_coefficients.cbegin(), m_coefficients.cbegin() + currentRank - rank, copy.m_coefficients.begin());
+            // remove leading zeros:
+            while(!copy.m_coefficients.empty() && copy.m_coefficients.back() == 0) {
+                copy.m_coefficients.pop_back();
+            }
+        }
+        return copy;
+    }
+
      /** @brief
      * Expect only positive integers as passed parametr. 
      * Caller object must be also positive.
@@ -144,16 +231,16 @@ private:
     ) {
         assert(m_isPositive && rhs.m_isPositive);
         
-        const auto size = std::max(m_digits.size(), rhs.m_digits.size());
+        const auto size = std::max(m_coefficients.size(), rhs.m_coefficients.size());
 
         auto carry { 0 };
         for(size_t i = 0; i < size || carry; i++) {
-            if ( i == m_digits.size() ) { 
-                m_digits.push_back( 0 );
+            if ( i == m_coefficients.size() ) { 
+                m_coefficients.push_back( 0 );
             }
-            m_digits[i] += carry + (i < rhs.m_digits.size()? rhs.m_digits[i] : 0);
-            carry = m_digits[i] >= RADIX;
-            if( carry ) m_digits[i] -= RADIX;
+            m_coefficients[i] += carry + (i < rhs.m_coefficients.size()? rhs.m_coefficients[i] : 0);
+            carry = m_coefficients[i] >= RADIX;
+            if( carry ) m_coefficients[i] -= RADIX;
         }
     }
 
@@ -172,14 +259,14 @@ private:
     ) {
         assert(m_isPositive && rhs.m_isPositive && !(*this < rhs));
         
-        // m_digits.size() >= rhs.m_digits.size() due to restrictions
-        for(size_t i = 0; i < m_digits.size(); i++) {
-            if( i < rhs.m_digits.size() ) {
-                m_digits[i] -= rhs.m_digits[i];
+        // m_coefficients.size() >= rhs.m_coefficients.size() due to restrictions
+        for(size_t i = 0; i < m_coefficients.size(); i++) {
+            if( i < rhs.m_coefficients.size() ) {
+                m_coefficients[i] -= rhs.m_coefficients[i];
             }
-            if ( m_digits[i] < 0) {
-                m_digits[i] += RADIX;
-                m_digits[i + 1]--;
+            if ( m_coefficients[i] < 0) {
+                m_coefficients[i] += RADIX;
+                m_coefficients[i + 1]--;
             }
         }
     }
@@ -213,8 +300,7 @@ private:
     }
 
     void ParseNonEmptyString(const std::string& number) {
-        // TODO: 
-        // - add exceptons for parsing, e.g. if first char is letter etc.
+        // TODO: add exceptons for parsing, e.g. if first char is letter etc.
         std::string_view sv { number };
         // set up number sign
         m_isPositive = number.front() == '-'? false : true;
@@ -224,30 +310,30 @@ private:
         sv.remove_suffix(sv.size() - sv.find_last_of("0123456789") - 1);
 
         const auto size = static_cast<int>(sv.size());
-        // allocate contiguous memory at once 
-        m_digits.reserve(size / BASE + 1);
-        for (int i = size; i > 0; i -= BASE) {
-            if (i <= BASE) {
+        // reserve contiguous memory at once 
+        m_coefficients.reserve(size / DIGIT_COUNT + 1);
+        for (int i = size; i > 0; i -= DIGIT_COUNT) {
+            if (i <= DIGIT_COUNT) {
                 const std::string sub(sv.begin(), sv.begin() + i);
-                m_digits.emplace_back(std::stoi(sub));
+                m_coefficients.emplace_back(std::stoi(sub));
             }
             else {
-                const std::string sub(sv.begin() + i - BASE, sv.begin() + i);
-                m_digits.emplace_back(std::stoi(sub));
+                const std::string sub(sv.begin() + i - DIGIT_COUNT, sv.begin() + i);
+                m_coefficients.emplace_back(std::stoi(sub));
             }
         }
     }
 
     void Print(std::ostream& os) const {
-        for(auto cell = m_digits.crbegin(); cell != m_digits.crend(); ++cell ) {
-            if( cell == m_digits.crbegin()) {
+        for(auto cell = m_coefficients.crbegin(); cell != m_coefficients.crend(); ++cell) {
+            if (cell == m_coefficients.crbegin()) {
                 // last number to be printed without leading zeros
                 // but with minus if it's negative
                 if( !m_isPositive )  os << '-';
                 os << *cell;
             }
             else {
-                os.width(BASE);
+                os.width(DIGIT_COUNT);
                 os.fill('0');
                 os << std::right << *cell;
             }
@@ -256,10 +342,12 @@ private:
 
 private:
 
-    static constexpr int BASE = 9; 
+    static constexpr int DIGIT_COUNT = 9; // max number of digits in one cell
     static constexpr int RADIX = 1'000'000'000;
     
-    std::vector<int> m_digits;
+    // Contains coefficients; from left to right starting from 0..
+    // N = m_coefficients[0] * RADIX ^ 0 + m_coefficients[1] * RADIX^1 + ... .
+    std::vector<int> m_coefficients;
     bool m_isPositive;
 };
 
@@ -305,8 +393,8 @@ bool operator< (const BigInt& lhs, const BigInt& rhs) {
     }
 
     // reacheable for only positive or negative integers
-    const auto lSize { static_cast<int>(lhs.m_digits.size()) };
-    const auto rSize { static_cast<int>(rhs.m_digits.size()) };
+    const auto lSize { static_cast<int>(lhs.m_coefficients.size()) };
+    const auto rSize { static_cast<int>(rhs.m_coefficients.size()) };
     
     // number with higher number of digits is greater
     if ( lSize > rSize ) {
@@ -319,11 +407,11 @@ bool operator< (const BigInt& lhs, const BigInt& rhs) {
         isLesser = false; // assume that integers are equel by default
         // Go from the highest digit number to lowest: 
         for(int i = lSize - 1; i >= 0; i-- ) {
-            if( lhs.m_digits[i] > rhs.m_digits[i] ) {
+            if( lhs.m_coefficients[i] > rhs.m_coefficients[i] ) {
                 isLesser = (lhs.m_isPositive && rhs.m_isPositive)? false: true;
                 break;
             } 
-            else if( lhs.m_digits[i] < rhs.m_digits[i] ) {
+            else if( lhs.m_coefficients[i] < rhs.m_coefficients[i] ) {
                 isLesser = (lhs.m_isPositive && rhs.m_isPositive)? true: false;
                 break;
             }
@@ -343,8 +431,8 @@ bool operator!= (const BigInt& lhs, const BigInt& rhs) {
 bool operator== (const BigInt& lhs, const BigInt& rhs) {
     bool isEquel { true };
 
-    const auto lSize { lhs.m_digits.size() };
-    const auto rSize { rhs.m_digits.size() };
+    const auto lSize { lhs.m_coefficients.size() };
+    const auto rSize { rhs.m_coefficients.size() };
     
     if( lhs.m_isPositive != rhs.m_isPositive ||
         lSize != rSize 
@@ -353,7 +441,7 @@ bool operator== (const BigInt& lhs, const BigInt& rhs) {
     }
 
     for(size_t i = 0; i < lSize && isEquel; i++) {
-        if( lhs.m_digits[i] != rhs.m_digits[i] ) {
+        if( lhs.m_coefficients[i] != rhs.m_coefficients[i] ) {
             isEquel = false;
         }
     }

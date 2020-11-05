@@ -211,6 +211,13 @@ TEST_F(BigIntTest, MultiplyWithBigIntOperand)
     }
 }
 
+TEST(KaratsubaMultiplication, MultiplySimpleBigIntegers) {
+    BigInt  lhs{"4567832143034230777777777777777777023428929384392482394890923048924330"}, 
+            rhs{"8918312738432612344172344345455643676757601293893498723432482343242341230489243303249"};
+    auto result = KaratsubaMultiplication(lhs, rhs);
+    ASSERT_EQ(lhs * rhs, result ) << "Karatsuba: " << result << "\nSchool mult: " << lhs * rhs;
+}
+
 TEST_F(BigIntTest, DivideWithBigIntOperand)
 {
     // data preparation:
