@@ -112,48 +112,6 @@ public:
         m_coefficients = std::move(res);
     }
 
-    // Time complexity: O(n^(1.585))
-    friend BigInt PositiveKaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs) {
-        /**
-         * Algorithm is fairy simple:
-         * A = ax + b
-         * B = cx + d
-         * A * B = (ax + b)(cx + d) = acxx + x(ad + cb) + bd 
-         * AND
-         * (ad + cb) = (a + b)(c + d) - ac - bd
-         * SO
-         * A * B = ac * xx + x * ((a + b)(c + d) - ac - bd) + bd
-        */
-        auto degree = std::max(lhs.m_coefficients.size(), rhs.m_coefficients.size());
-        if(degree <= 1u) return lhs * rhs;
-
-        degree = (degree&1u) + (degree >> 1u);
-        // Split lhs and rhs into 2 equal parts:
-
-        // works like binary shift operator >> (pop_front coefficient)
-        auto a = lhs.ShiftRight(degree);
-        // cut off rank from right to left (from highest to lowest) (pop_back coefficients)
-        // min(size(), size() - degree)
-        auto b = lhs.CutOffRank(lhs.m_coefficients.size() > degree? lhs.m_coefficients.size() - degree: 0u); 
-        // works like binary shift operator >>
-        auto c = rhs.ShiftRight(degree); 
-        // cut off rank from right to left (from highest to lowest)
-        auto d = rhs.CutOffRank(rhs.m_coefficients.size() > degree? rhs.m_coefficients.size() - degree: 0u); 
-
-        // Compute the subproblems:
-        auto ac = PositiveKaratsubaMultiplication(a, c);
-        auto bd = PositiveKaratsubaMultiplication(b, d);
-        auto abcd = PositiveKaratsubaMultiplication(a + b, c + d);
-        return (abcd - ac - bd).ShiftLeft(degree) + ac.ShiftLeft(degree << 1u) + bd; 
-    }
-    
-    // Time complexity: O(n^(1.585))
-    friend BigInt KaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs) { 
-        BigInt result = PositiveKaratsubaMultiplication(lhs, rhs);
-        result.m_isPositive = rhs.m_isPositive == lhs.m_isPositive;
-        return result;
-    }
-
     void operator /= (const BigInt& rhs) {
         *this = this->DivMod(rhs).first;
     }
@@ -162,6 +120,10 @@ public:
     void operator %= (const BigInt& rhs) {
         *this = this->DivMod(rhs).second;
     }
+
+    // Time complexity: O(n^(1.585))
+    friend BigInt PositiveKaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs);
+    friend BigInt KaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs);
     
     friend BigInt operator+ (const BigInt& lhs, const BigInt& rhs);
     friend BigInt operator- (const BigInt& lhs, const BigInt& rhs);
@@ -359,6 +321,45 @@ private:
     bool m_isPositive;
 };
 
+BigInt PositiveKaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs) {
+    /**
+     * Algorithm is fairy simple:
+     * A = ax + b
+     * B = cx + d
+     * A * B = (ax + b)(cx + d) = acxx + x(ad + cb) + bd 
+     * AND
+     * (ad + cb) = (a + b)(c + d) - ac - bd
+     * SO
+     * A * B = ac * xx + x * ((a + b)(c + d) - ac - bd) + bd
+    */
+    auto degree = std::max(lhs.m_coefficients.size(), rhs.m_coefficients.size());
+    if(degree <= 1u) return lhs * rhs;
+
+    degree = (degree&1u) + (degree >> 1u);
+    // Split lhs and rhs into 2 equal parts:
+
+    // works like binary shift operator >> (pop_front coefficient)
+    auto a = lhs.ShiftRight(degree);
+    // cut off rank from right to left (from highest to lowest) (pop_back coefficients)
+    // min(size(), size() - degree)
+    auto b = lhs.CutOffRank(lhs.m_coefficients.size() > degree? lhs.m_coefficients.size() - degree: 0u); 
+    // works like binary shift operator >>
+    auto c = rhs.ShiftRight(degree); 
+    // cut off rank from right to left (from highest to lowest)
+    auto d = rhs.CutOffRank(rhs.m_coefficients.size() > degree? rhs.m_coefficients.size() - degree: 0u); 
+
+    // Compute the subproblems:
+    auto ac = PositiveKaratsubaMultiplication(a, c);
+    auto bd = PositiveKaratsubaMultiplication(b, d);
+    auto abcd = PositiveKaratsubaMultiplication(a + b, c + d);
+    return (abcd - ac - bd).ShiftLeft(degree) + ac.ShiftLeft(degree << 1u) + bd; 
+}
+
+BigInt KaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs) { 
+    BigInt result = PositiveKaratsubaMultiplication(lhs, rhs);
+    result.m_isPositive = rhs.m_isPositive == lhs.m_isPositive;
+    return result;
+}
 
 BigInt operator+ (const BigInt& lhs, const BigInt& rhs) {
     auto x { lhs };
