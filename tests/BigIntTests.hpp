@@ -34,6 +34,18 @@ namespace helper {
             return *m_bigInt;
         }
 
+        BigInt ShiftLeft(size_t rank) {
+            return m_bigInt->ShiftLeft(rank); 
+        }
+
+        BigInt ShiftRight(size_t rank) {
+            return m_bigInt->ShiftRight(rank);
+        }
+
+        BigInt CutOffRank(size_t rank) {
+            return m_bigInt->CutOffRank(rank);
+        }
+
     private:
         // tested value
         BigInt* m_bigInt;

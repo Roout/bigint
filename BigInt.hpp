@@ -58,7 +58,7 @@ public:
             right.SubstractPositiveInteger(*this);
             *this = std::move(right);
         }
-        while(!m_coefficients.empty() && !m_coefficients.back()) {
+        while(m_coefficients.size() > 1u && !m_coefficients.back()) {
             m_coefficients.pop_back();
         }
     }
@@ -88,7 +88,7 @@ public:
             this->AddPositiveInteger(right);
             -*this;
         }
-        while(!m_coefficients.empty() && !m_coefficients.back()) {
+        while(m_coefficients.size() > 1u && !m_coefficients.back()) {
             m_coefficients.pop_back();
         }
     }
@@ -113,7 +113,7 @@ public:
     }
 
     // Time complexity: O(n^(1.585))
-    friend BigInt KaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs) {
+    friend BigInt PositiveKaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs) {
         /**
          * Algorithm is fairy simple:
          * A = ax + b
@@ -125,7 +125,7 @@ public:
          * A * B = ac * xx + x * ((a + b)(c + d) - ac - bd) + bd
         */
         auto degree = std::max(lhs.m_coefficients.size(), rhs.m_coefficients.size());
-        if(degree == 1) return lhs * rhs;
+        if(degree <= 1u) return lhs * rhs;
 
         degree = (degree&1u) + (degree >> 1u);
         // Split lhs and rhs into 2 equal parts:
@@ -133,17 +133,25 @@ public:
         // works like binary shift operator >> (pop_front coefficient)
         auto a = lhs.ShiftRight(degree);
         // cut off rank from right to left (from highest to lowest) (pop_back coefficients)
-        auto b = lhs.CutOffRank(std::min(lhs.m_coefficients.size(), lhs.m_coefficients.size() - degree)); 
+        // min(size(), size() - degree)
+        auto b = lhs.CutOffRank(lhs.m_coefficients.size() > degree? lhs.m_coefficients.size() - degree: 0u); 
         // works like binary shift operator >>
         auto c = rhs.ShiftRight(degree); 
         // cut off rank from right to left (from highest to lowest)
-        auto d = rhs.CutOffRank(std::min(rhs.m_coefficients.size(), rhs.m_coefficients.size() - degree)); 
+        auto d = rhs.CutOffRank(rhs.m_coefficients.size() > degree? rhs.m_coefficients.size() - degree: 0u); 
 
         // Compute the subproblems:
-        auto ac = KaratsubaMultiplication(a, c);
-        auto bd = KaratsubaMultiplication(b, d);
-        auto abcd = KaratsubaMultiplication(a + b, c + d);
+        auto ac = PositiveKaratsubaMultiplication(a, c);
+        auto bd = PositiveKaratsubaMultiplication(b, d);
+        auto abcd = PositiveKaratsubaMultiplication(a + b, c + d);
         return (abcd - ac - bd).ShiftLeft(degree) + ac.ShiftLeft(degree << 1u) + bd; 
+    }
+    
+    // Time complexity: O(n^(1.585))
+    friend BigInt KaratsubaMultiplication(const BigInt& lhs, const BigInt& rhs) { 
+        BigInt result = PositiveKaratsubaMultiplication(lhs, rhs);
+        result.m_isPositive = rhs.m_isPositive == lhs.m_isPositive;
+        return result;
     }
 
     void operator /= (const BigInt& rhs) {
@@ -213,7 +221,7 @@ private:
             copy.m_coefficients.resize(currentRank - rank);
             std::copy(m_coefficients.cbegin(), m_coefficients.cbegin() + currentRank - rank, copy.m_coefficients.begin());
             // remove leading zeros:
-            while(!copy.m_coefficients.empty() && copy.m_coefficients.back() == 0) {
+            while(copy.m_coefficients.size() > 1 && copy.m_coefficients.back() == 0) {
                 copy.m_coefficients.pop_back();
             }
         }

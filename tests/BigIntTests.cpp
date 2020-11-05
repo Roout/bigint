@@ -211,11 +211,47 @@ TEST_F(BigIntTest, MultiplyWithBigIntOperand)
     }
 }
 
-TEST(KaratsubaMultiplication, MultiplySimpleBigIntegers) {
-    BigInt  lhs{"4567832143034230777777777777777777023428929384392482394890923048924330"}, 
-            rhs{"8918312738432612344172344345455643676757601293893498723432482343242341230489243303249"};
-    auto result = KaratsubaMultiplication(lhs, rhs);
-    ASSERT_EQ(lhs * rhs, result ) << "Karatsuba: " << result << "\nSchool mult: " << lhs * rhs;
+TEST_F(BigIntTest, LeftShift) {
+    BigInt lhs { "1293123" };
+    helper::Tests test(&lhs);
+    ASSERT_EQ(test.ShiftLeft(0), BigInt{"1293123"});
+    ASSERT_EQ(test.ShiftLeft(1), BigInt{"1293123000000000"});
+    ASSERT_EQ(test.ShiftLeft(2), BigInt{"1293123000000000000000000"});
+}
+
+TEST_F(BigIntTest, RightShift) {
+    BigInt lhs { "1293123000000000" };
+    helper::Tests testLeft(&lhs);
+    ASSERT_EQ(testLeft.ShiftRight(0), BigInt{"1293123000000000"});
+    ASSERT_EQ(testLeft.ShiftRight(1), BigInt{"1293123"});
+    ASSERT_EQ(testLeft.ShiftRight(2), BigInt{"0"});
+    ASSERT_EQ(testLeft.ShiftRight(3), BigInt{"0"});
+}
+
+TEST_F(BigIntTest, CutOffRank) {
+    BigInt lhs { "22001293123000000000000000000" };
+    helper::Tests test(&lhs);   
+    ASSERT_EQ(test.CutOffRank(0), BigInt{"22001293123000000000000000000"});
+    ASSERT_EQ(test.CutOffRank(1), BigInt{"1293123000000000000000000"});
+    ASSERT_EQ(test.CutOffRank(2), BigInt{"0"});
+    ASSERT_EQ(test.CutOffRank(3), BigInt{"0"});
+    ASSERT_EQ(test.CutOffRank(4), BigInt{"0"});
+}
+
+TEST_F(BigIntTest, KaratsubaMultiplication) {
+    // data preparation:
+    std::array<BigInt, SIZE> lhs, rhs;
+    for(size_t i = 0; i < SIZE; i++) {
+        lhs[i] = BigInt{ m_op1View[i] };
+        rhs[i] = BigInt{ m_op2View[i] };
+    }
+    // tests
+    for(size_t i = 0; i < SIZE; i++) {
+        std::stringstream ss;
+        auto result = KaratsubaMultiplication(lhs[i], rhs[i]);
+        ss << result;
+        EXPECT_EQ(ss.str(), m_resultView[Operators::MULT][i]) << "i = " << i;
+    }
 }
 
 TEST_F(BigIntTest, DivideWithBigIntOperand)
